@@ -42,9 +42,9 @@ for your platform from the [Releases](https://github.com/lxhyl/mijia-skill/relea
 against the `.sha256` file next to it, and put `mijia` on your `PATH`:
 
 ```sh
-shasum -a 256 -c mijia-v0.1.0-aarch64-apple-darwin.tar.gz.sha256
-tar xzf mijia-v0.1.0-aarch64-apple-darwin.tar.gz
-install -m 755 mijia-v0.1.0-aarch64-apple-darwin/mijia ~/.local/bin/
+shasum -a 256 -c mijia-v0.1.1-aarch64-apple-darwin.tar.gz.sha256
+tar xzf mijia-v0.1.1-aarch64-apple-darwin.tar.gz
+install -m 755 mijia-v0.1.1-aarch64-apple-darwin/mijia ~/.local/bin/
 ```
 
 On macOS, if a browser download is blocked by Gatekeeper, run

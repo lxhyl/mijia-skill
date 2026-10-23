@@ -34,9 +34,9 @@
 文件校验，然后把 `mijia` 放进 `PATH`：
 
 ```sh
-shasum -a 256 -c mijia-v0.1.0-aarch64-apple-darwin.tar.gz.sha256
-tar xzf mijia-v0.1.0-aarch64-apple-darwin.tar.gz
-install -m 755 mijia-v0.1.0-aarch64-apple-darwin/mijia ~/.local/bin/
+shasum -a 256 -c mijia-v0.1.1-aarch64-apple-darwin.tar.gz.sha256
+tar xzf mijia-v0.1.1-aarch64-apple-darwin.tar.gz
+install -m 755 mijia-v0.1.1-aarch64-apple-darwin/mijia ~/.local/bin/
 ```
 
 macOS 上用浏览器下载的文件如果被 Gatekeeper 拦住，运行
