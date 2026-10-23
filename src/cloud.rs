@@ -80,28 +80,62 @@ impl Cloud {
     }
 }
 
-impl Api for Cloud {
-    fn call(&self, uri: &str, data: &Value) -> Result<Value> {
-        let data = data.to_string();
-        let (nonce, signature) = sign(uri, &data, &self.ssecurity, &new_nonce());
+/// Writes are not idempotent: they always go out on a fresh connection and are never retried.
+fn is_write(uri: &str) -> bool {
+    matches!(uri, "/miotspec/prop/set" | "/miotspec/action")
+}
+
+/// The connection broke before a full response arrived. The cloud closes idle keep-alive
+/// connections, so a request sent on a pooled one can fail with "unexpected end of file".
+fn connection_dropped(e: &ureq::Error) -> bool {
+    matches!(e, ureq::Error::Io(_) | ureq::Error::ConnectionFailed)
+}
+
+impl Cloud {
+    fn send(&self, agent: &ureq::Agent, uri: &str, data: &str) -> std::result::Result<(u16, String), ureq::Error> {
+        let (nonce, signature) = sign(uri, data, &self.ssecurity, &new_nonce());
         let cookie = format!(
             "userId={}; serviceToken={}; PassportDeviceId={}",
             self.token.user_id, self.token.service_token, self.token.device_id
         );
-        let mut response = self
-            .agent
+        let mut response = agent
             .post(format!("{}{uri}", self.server))
             .header("User-Agent", USER_AGENT)
             .header("x-xiaomi-protocal-flag-cli", "PROTOCAL-HTTP2")
             .header("Cookie", cookie)
-            .send_form([("_nonce", nonce.as_str()), ("data", data.as_str()), ("signature", signature.as_str())])
-            .map_err(|e| Error::Other(format!("cannot reach the Xiaomi cloud: {e}")))?;
-        match response.status().as_u16() {
+            .send_form([("_nonce", nonce.as_str()), ("data", data), ("signature", signature.as_str())])?;
+        let status = response.status().as_u16();
+        Ok((status, response.body_mut().read_to_string()?))
+    }
+}
+
+impl Api for Cloud {
+    fn call(&self, uri: &str, data: &Value) -> Result<Value> {
+        let data = data.to_string();
+        let write = is_write(uri);
+        let mut attempts = 0;
+        let (status, body) = loop {
+            attempts += 1;
+            let agent = if write { http_agent() } else { self.agent.clone() };
+            match self.send(&agent, uri, &data) {
+                Ok(reply) => break reply,
+                // A read is safe to repeat; one retry gets a new connection.
+                Err(e) if !write && attempts == 1 && connection_dropped(&e) => continue,
+                Err(e @ (ureq::Error::Io(_) | ureq::Error::Timeout(_))) if write => {
+                    return fail(format!(
+                        "the connection to the Xiaomi cloud broke ({e}) after the command was sent, so it may \
+                         or may not have reached the device. Check with `mijia status` before trying again"
+                    ))
+                }
+                Err(e) => return fail(format!("cannot reach the Xiaomi cloud: {e}")),
+            }
+        };
+        match status {
             200 => {}
             401 => return Err(Error::LoginRequired(self.relogin.clone())),
             status => return fail(format!("the Xiaomi cloud returned HTTP {status}")),
         }
-        let body: Value = serde_json::from_str(&response.body_mut().read_to_string()?)?;
+        let body: Value = serde_json::from_str(&body)?;
         if body.get("code").and_then(Value::as_i64) == Some(0) {
             return Ok(body.get("result").cloned().unwrap_or(Value::Null));
         }
@@ -219,6 +253,78 @@ mod tests {
         let minutes = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() / 60;
         let got = u32::from_be_bytes(nonce[8..].try_into().unwrap());
         assert!((minutes as u32).abs_diff(got) <= 1);
+    }
+
+    /// A local HTTP server that answers each connection with the next reply, or closes it
+    /// without answering (`None`), the way the cloud drops an idle keep-alive connection.
+    fn fake_server(replies: Vec<Option<&'static str>>) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/app", listener.local_addr().unwrap());
+        let connections = std::sync::Arc::new(AtomicUsize::new(0));
+        let seen = connections.clone();
+        std::thread::spawn(move || {
+            for reply in replies {
+                let (stream, _) = listener.accept().unwrap();
+                seen.fetch_add(1, Ordering::SeqCst);
+                let mut reader = BufReader::new(stream);
+                let mut length = 0;
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = v.trim().parse().unwrap();
+                    }
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                reader.read_exact(&mut vec![0; length]).unwrap();
+                if let Some(body) = reply {
+                    let mut stream = reader.into_inner();
+                    write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .unwrap();
+                }
+            }
+        });
+        (url, connections)
+    }
+
+    fn cloud_at(server: String) -> Cloud {
+        let token = Token {
+            user_id: "1".into(),
+            device_id: "TESTDEVICE".into(),
+            ssecurity: "c2VjcmV0".into(),
+            service_token: "t".into(),
+        };
+        Cloud { agent: http_agent(), server, token, ssecurity: b"secret".to_vec(), relogin: "login".into() }
+    }
+
+    #[test]
+    fn reads_retry_once_when_the_connection_drops() {
+        use std::sync::atomic::Ordering;
+        let (url, connections) = fake_server(vec![None, Some(r#"{"code":0,"result":{"list":[]}}"#)]);
+        assert!(device_list(&cloud_at(url)).unwrap().is_empty());
+        assert_eq!(connections.load(Ordering::SeqCst), 2);
+
+        let (url, connections) = fake_server(vec![None, None]);
+        let err = device_list(&cloud_at(url)).unwrap_err().to_string();
+        assert!(err.contains("cannot reach the Xiaomi cloud"), "{err}");
+        assert_eq!(connections.load(Ordering::SeqCst), 2, "only one retry");
+    }
+
+    #[test]
+    fn writes_are_never_retried() {
+        use std::sync::atomic::Ordering;
+        let (url, connections) = fake_server(vec![None]);
+        let err = set_prop(&cloud_at(url), "1", 2, 1, &json!(true)).unwrap_err().to_string();
+        assert!(err.contains("may or may not have reached the device"), "{err}");
+        assert_eq!(connections.load(Ordering::SeqCst), 1);
     }
 
     #[test]
