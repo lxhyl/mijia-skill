@@ -1,0 +1,41 @@
+{
+  "type": "urn:miot-spec-v2:device:heater:0000A01A:demo-heater1:1",
+  "description": "Heater (synthetic test fixture, not a real model)",
+  "services": [
+    {
+      "iid": 1,
+      "type": "urn:miot-spec-v2:service:device-information:00007801:demo-heater1:1",
+      "description": "Device Information",
+      "properties": [
+        {"iid": 1, "type": "urn:miot-spec-v2:property:manufacturer:00000001:demo-heater1:1", "description": "Device Manufacturer", "format": "string", "access": ["read"]},
+        {"iid": 2, "type": "urn:miot-spec-v2:property:serial-number:00000003:demo-heater1:1", "description": "Serial Number", "format": "string", "access": ["read"]}
+      ]
+    },
+    {
+      "iid": 2,
+      "type": "urn:miot-spec-v2:service:heater:00007808:demo-heater1:1",
+      "description": "Heater",
+      "properties": [
+        {"iid": 1, "type": "urn:miot-spec-v2:property:on:00000006:demo-heater1:1", "description": "Switch Status", "format": "bool", "access": ["read", "write", "notify"], "comment": "开关"},
+        {"iid": 2, "type": "urn:miot-spec-v2:property:target-temperature:00000021:demo-heater1:1", "description": "Target Temperature", "format": "float", "access": ["read", "write", "notify"], "unit": "celsius", "value-range": [16, 32, 0.5]},
+        {"iid": 3, "type": "urn:miot-spec-v2:property:mode:00000008:demo-heater1:1", "description": "Mode", "format": "uint8", "access": ["read", "write", "notify"], "value-list": [{"value": 1, "description": "Comfort", "comment": "舒适"}, {"value": 2, "description": "Eco", "comment": "节能"}, {"value": 3, "description": "Anti-freeze", "comment": "防冻"}]},
+        {"iid": 4, "type": "urn:miot-spec-v2:property:countdown-time:00000055:demo-heater1:1", "description": "Countdown Time", "format": "uint16", "access": ["read", "write", "notify"], "unit": "minutes", "value-range": [0, 480, 1]},
+        {"iid": 5, "type": "urn:miot-spec-v2:property:temperature:00000020:demo-heater1:1", "description": "Temperature", "format": "float", "access": ["read", "notify"], "unit": "celsius", "value-range": [-30, 100, 0.1]},
+        {"iid": 6, "type": "urn:miot-spec-v2:property:fault:00000009:demo-heater1:1", "description": "Device Fault", "format": "uint8", "access": ["read", "notify"], "value-list": [{"value": 0, "description": "No Faults"}, {"value": 1, "description": "Overheat"}]},
+        {"iid": 7, "type": "urn:miot-spec-v2:property:alarm:00000012:demo-heater1:1", "description": "Alarm", "format": "bool", "access": ["write"]}
+      ],
+      "actions": [
+        {"iid": 1, "type": "urn:miot-spec-v2:action:set-timer:00002830:demo-heater1:1", "description": "Set Timer", "in": [4], "out": [4]},
+        {"iid": 2, "type": "urn:miot-spec-v2:action:toggle:00002811:demo-heater1:1", "description": "Toggle", "in": [], "out": []}
+      ]
+    },
+    {
+      "iid": 3,
+      "type": "urn:miot-spec-v2:service:indicator-light:00007803:demo-heater1:1",
+      "description": "Indicator Light",
+      "properties": [
+        {"iid": 1, "type": "urn:miot-spec-v2:property:on:00000006:demo-heater1:1", "description": "Switch Status", "format": "bool", "access": ["read", "write"]}
+      ]
+    }
+  ]
+}
