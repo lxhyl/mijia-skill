@@ -4,7 +4,7 @@ description: Read and control Xiaomi Mi Home / Mijia (米家) smart-home devices
 license: MIT
 compatibility: Needs the `mijia` CLI on PATH, network access to api.io.mi.com and miot-spec.org, and a Xiaomi login that the user created themselves with `mijia login`.
 metadata:
-  version: "0.1.1"
+  version: "0.1.2"
 ---
 
 # Mi Home (Mijia) devices
