@@ -1,0 +1,23 @@
+# Build output
+/target/
+/dist/
+*.tar.gz
+*.zip
+
+# Xiaomi login cache: equivalent to the account itself, never commit it.
+# `mijia login` writes it to ~/.config/mijia/token.json by default.
+token.json
+*.token
+.mi.token
+.env
+
+# MiOT spec cache and local config
+.mi-spec/
+.cache/
+config.json
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
