@@ -11,6 +11,8 @@ pub enum Error {
     LoginRequired(String),
     /// A write to a high-risk device was attempted without `--confirmed`.
     NeedsConfirmation(String),
+    /// The connection broke after a write was sent, so it may or may not have reached the device.
+    Interrupted(String),
     Other(String),
 }
 
@@ -25,7 +27,7 @@ impl Error {
         match self {
             Error::LoginRequired(_) => EXIT_LOGIN_REQUIRED,
             Error::NeedsConfirmation(_) => EXIT_NEEDS_CONFIRMATION,
-            Error::Other(_) => EXIT_ERROR,
+            Error::Interrupted(_) | Error::Other(_) => EXIT_ERROR,
         }
     }
 
@@ -34,7 +36,7 @@ impl Error {
         let kind = match self {
             Error::LoginRequired(_) => "login_required",
             Error::NeedsConfirmation(_) => "needs_confirmation",
-            Error::Other(_) => "error",
+            Error::Interrupted(_) | Error::Other(_) => "error",
         };
         serde_json::json!({"error": self.to_string(), "kind": kind, "exit_code": self.exit_code()})
     }
@@ -43,7 +45,9 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::LoginRequired(m) | Error::NeedsConfirmation(m) | Error::Other(m) => f.write_str(m),
+            Error::LoginRequired(m) | Error::NeedsConfirmation(m) | Error::Interrupted(m) | Error::Other(m) => {
+                f.write_str(m)
+            }
         }
     }
 }

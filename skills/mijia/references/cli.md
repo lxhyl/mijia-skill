@@ -47,6 +47,12 @@ for the full value.
 asynchronously, so the read-back can lag). Any other code is an error from the device or cloud,
 for example when the device is busy, in a state that does not allow the change, or offline.
 
+If the connection breaks after a command was sent, the cloud's reply is lost and the command may
+or may not have reached the device. For a `set` on a readable property the CLI reads the property
+and, if the value is not there yet, sends it once more (setting a value twice is harmless). It
+never resends an `action` or a write-only property: those fail with "may or may not have reached
+the device", and you should check with `status` before doing anything else.
+
 ## JSON output (`--json`)
 
 - `list`: `[{"name", "model", "did", "online"}]` (`online` may be `null` for Bluetooth devices).
@@ -58,8 +64,10 @@ for example when the device is busy, in a state that does not allow the change, 
   "description", "comment", "label", "hint"}],
   "actions": [...]}` (`actions` as in `spec`). `value` is `null` when the device did not return it.
   `write_only` and `actions` are only present when no properties are named.
-- `set`: `{"device", "property", "name", "value", "display", "code", "result", "read_back",
-  "applied"}`. `applied` is `true`/`false` after the read-back, `null` for write-only properties.
+- `set`: `{"device", "property", "name", "value", "display", "code", "result", "resent",
+  "read_back", "applied"}`. `applied` is `true`/`false` after the read-back, `null` for write-only
+  properties. `resent` is `true` when the first connection broke and the value was sent again. When
+  it broke but a read already showed the value, `code` is `null` and `result` is `already set`.
 - `action`: `{"device", "action", "name", "args", "code", "result", "out": [{"id", "name", "value",
   "display"}]}`.
 

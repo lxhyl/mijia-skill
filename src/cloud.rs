@@ -80,7 +80,8 @@ impl Cloud {
     }
 }
 
-/// Writes are not idempotent: they always go out on a fresh connection and are never retried.
+/// Writes go out on a fresh connection and are never retried here: only the caller knows
+/// whether sending one twice is safe.
 fn is_write(uri: &str) -> bool {
     matches!(uri, "/miotspec/prop/set" | "/miotspec/action")
 }
@@ -122,10 +123,10 @@ impl Api for Cloud {
                 // A read is safe to repeat; one retry gets a new connection.
                 Err(e) if !write && attempts == 1 && connection_dropped(&e) => continue,
                 Err(e @ (ureq::Error::Io(_) | ureq::Error::Timeout(_))) if write => {
-                    return fail(format!(
+                    return Err(Error::Interrupted(format!(
                         "the connection to the Xiaomi cloud broke ({e}) after the command was sent, so it may \
                          or may not have reached the device. Check with `mijia status` before trying again"
-                    ))
+                    )))
                 }
                 Err(e) => return fail(format!("cannot reach the Xiaomi cloud: {e}")),
             }
@@ -322,8 +323,9 @@ mod tests {
     fn writes_are_never_retried() {
         use std::sync::atomic::Ordering;
         let (url, connections) = fake_server(vec![None]);
-        let err = set_prop(&cloud_at(url), "1", 2, 1, &json!(true)).unwrap_err().to_string();
-        assert!(err.contains("may or may not have reached the device"), "{err}");
+        let err = set_prop(&cloud_at(url), "1", 2, 1, &json!(true)).unwrap_err();
+        assert!(matches!(err, Error::Interrupted(_)), "{err}");
+        assert!(err.to_string().contains("may or may not have reached the device"), "{err}");
         assert_eq!(connections.load(Ordering::SeqCst), 1);
     }
 

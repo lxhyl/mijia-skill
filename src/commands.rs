@@ -336,10 +336,34 @@ pub fn set(
     let what = format!("set {id} {name} to {} on {}", p.show(&value), device.name);
     check_risk(&spec, device, confirmed, &what)?;
     require_online(device)?;
-    let code = cloud::set_prop(api, &device.did, s.iid, p.iid, &value)?;
-    let result = result_label(device, &what, code)?;
+    let mut resent = false;
+    let code = match cloud::set_prop(api, &device.did, s.iid, p.iid, &value) {
+        // Setting a property to a value is idempotent, so when the connection breaks before the
+        // reply, read the property: if the value is not there yet, send it once more. If the
+        // read fails too, the original error says best what to do.
+        Err(Error::Interrupted(msg)) if p.readable() => {
+            sleep(readback.wait);
+            let now = cloud::get_props(api, &device.did, &[(s.iid, p.iid)]).map_err(|_| Error::Interrupted(msg))?;
+            if spec::same_value(&now.into_iter().next().flatten().unwrap_or(Value::Null), &value) {
+                None
+            } else {
+                resent = true;
+                Some(cloud::set_prop(api, &device.did, s.iid, p.iid, &value)?)
+            }
+        }
+        reply => Some(reply?),
+    };
+    let result = match code {
+        Some(code) => result_label(device, &what, code)?,
+        None => "already set",
+    };
 
     let mut line = format!("{}: {id} {name} -> {} ({result})", device.name, p.show(&value));
+    if resent {
+        line += "; sent twice: the connection broke before the first reply";
+    } else if code.is_none() {
+        line += "; the connection broke before the reply, but a read shows the value in place";
+    }
     let mut read_back = Value::Null;
     let mut applied = None;
     if p.readable() {
@@ -360,7 +384,7 @@ pub fn set(
     }
     let json = json!({
         "device": device, "property": id, "name": name, "value": value, "display": p.show(&value),
-        "code": code, "result": result, "read_back": read_back, "applied": applied,
+        "code": code, "result": result, "resent": resent, "read_back": read_back, "applied": applied,
     });
     Ok(Output { text: line, json })
 }
@@ -420,18 +444,33 @@ pub fn action(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
+    use std::collections::VecDeque;
 
     /// A fake cloud with one heater ("Study Heater") and one plug, recording every call.
     struct FakeCloud {
         calls: RefCell<Vec<(String, Value)>>,
         heater_online: bool,
         applies_writes: bool,
+        /// The value of property 2-1, changed by writes the device applies.
+        on: Cell<bool>,
+        /// Upcoming writes whose connection breaks before the reply: `true` if the write
+        /// reached the device first, `false` if it was lost.
+        broken_writes: RefCell<VecDeque<bool>>,
     }
 
     impl FakeCloud {
         fn new() -> Self {
-            FakeCloud { calls: RefCell::new(Vec::new()), heater_online: true, applies_writes: true }
+            FakeCloud {
+                calls: RefCell::new(Vec::new()),
+                heater_online: true,
+                applies_writes: true,
+                on: Cell::new(false),
+                broken_writes: RefCell::new(VecDeque::new()),
+            }
+        }
+        fn breaking(writes: &[bool]) -> Self {
+            FakeCloud { broken_writes: RefCell::new(writes.iter().copied().collect()), ..FakeCloud::new() }
         }
         fn writes(&self) -> Vec<Value> {
             self.calls
@@ -458,7 +497,7 @@ mod tests {
                             .iter()
                             .map(|p| {
                                 let value = match (p["siid"].as_u64(), p["piid"].as_u64()) {
-                                    (Some(2), Some(1)) => json!(self.applies_writes),
+                                    (Some(2), Some(1)) => json!(self.on.get()),
                                     (Some(2), Some(2)) => json!(21.0),
                                     (Some(2), Some(3)) => json!(2),
                                     (Some(1), Some(3)) => json!("1.0.9"),
@@ -469,8 +508,26 @@ mod tests {
                             .collect(),
                     )
                 }
-                "/miotspec/prop/set" => json!([{"code": 0}]),
-                "/miotspec/action" => json!({"code": 0, "out": [30]}),
+                "/miotspec/prop/set" | "/miotspec/action" => {
+                    let broken = self.broken_writes.borrow_mut().pop_front();
+                    let p = &data["params"][0];
+                    if self.applies_writes
+                        && broken != Some(false)
+                        && (p["siid"].as_u64(), p["piid"].as_u64()) == (Some(2), Some(1))
+                    {
+                        self.on.set(p["value"].as_bool().unwrap());
+                    }
+                    if broken.is_some() {
+                        return Err(Error::Interrupted(
+                            "the connection broke; it may or may not have reached the device".into(),
+                        ));
+                    }
+                    if uri == "/miotspec/action" {
+                        json!({"code": 0, "out": [30]})
+                    } else {
+                        json!([{"code": 0}])
+                    }
+                }
                 other => panic!("unexpected call {other}"),
             })
         }
@@ -559,6 +616,36 @@ mod tests {
         let out = set(&cloud, &FixtureSpecs, "Desk Plug", "heater.on", "on", false, &FAST).unwrap();
         assert_eq!(out.json["applied"], json!(false));
         assert!(out.text.contains("Not updated yet"), "{}", out.text);
+    }
+
+    #[test]
+    fn an_interrupted_set_is_checked_and_sent_once_more() {
+        // The write was lost: the read shows the old value, so it goes out a second time.
+        let cloud = FakeCloud::breaking(&[false]);
+        let out = set(&cloud, &FixtureSpecs, "Desk Plug", "heater.on", "true", false, &FAST).unwrap();
+        assert_eq!(cloud.writes().len(), 2);
+        assert_eq!((out.json["resent"].clone(), out.json["applied"].clone()), (json!(true), json!(true)));
+        assert!(out.text.contains("(done); sent twice"), "{}", out.text);
+
+        // Only the reply was lost: the read shows the new value, so nothing more is sent.
+        let cloud = FakeCloud::breaking(&[true]);
+        let out = set(&cloud, &FixtureSpecs, "Desk Plug", "heater.on", "true", false, &FAST).unwrap();
+        assert_eq!(cloud.writes().len(), 1);
+        assert_eq!((out.json["code"].clone(), out.json["result"].clone()), (Value::Null, json!("already set")));
+        assert_eq!((out.json["resent"].clone(), out.json["applied"].clone()), (json!(false), json!(true)));
+
+        // Broken twice: give up with the advice to check first.
+        let cloud = FakeCloud::breaking(&[false, false]);
+        let err = set(&cloud, &FixtureSpecs, "Desk Plug", "heater.on", "true", false, &FAST).unwrap_err();
+        assert!(err.to_string().contains("may or may not have reached"), "{err}");
+        assert_eq!(cloud.writes().len(), 2, "only one more try");
+
+        // Write-only properties cannot be checked and actions may not be safe to repeat:
+        // neither is ever sent twice.
+        let cloud = FakeCloud::breaking(&[false, false]);
+        assert!(set(&cloud, &FixtureSpecs, "Desk Plug", "heater.alarm", "true", false, &FAST).is_err());
+        assert!(action(&cloud, &FixtureSpecs, "Desk Plug", "toggle", &[], false).is_err());
+        assert_eq!(cloud.writes().len(), 2);
     }
 
     #[test]

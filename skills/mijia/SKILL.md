@@ -92,6 +92,7 @@ About `--confirmed`:
 | The feature the user wants is not in `status` / `spec` | Say the device does not support it. Do not experiment with other properties |
 | A value's meaning is unclear | Report the raw value and description; suggest checking the Mi Home app |
 | The device is offline | Report it; the CLI will not send writes to offline devices. Do not retry in a loop |
+| Error says the command "may or may not have reached the device" | Run `mijia status` on that property or device first. Repeat a `set` only if the value is still unchanged; ask the user before repeating an `action` |
 | Write returned "accepted" but the read-back is unchanged | The cloud can lag a few seconds. Check once more with `mijia status` after a short wait; do not resend |
 | Asked to watch a value | Poll at most once a minute |
 | `miot-spec.org has no MiOT spec` | The device uses an older protocol this tool cannot control; say so |
