@@ -28,6 +28,16 @@ impl Error {
             Error::Other(_) => EXIT_ERROR,
         }
     }
+
+    /// What `--json` prints on stdout for a failed command, so scripts can always parse stdout.
+    pub fn to_json(&self) -> serde_json::Value {
+        let kind = match self {
+            Error::LoginRequired(_) => "login_required",
+            Error::NeedsConfirmation(_) => "needs_confirmation",
+            Error::Other(_) => "error",
+        };
+        serde_json::json!({"error": self.to_string(), "kind": kind, "exit_code": self.exit_code()})
+    }
 }
 
 impl fmt::Display for Error {
@@ -53,5 +63,18 @@ impl From<serde_json::Error> for Error {
 impl From<ureq::Error> for Error {
     fn from(e: ureq::Error) -> Self {
         Error::Other(format!("network error: {e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_errors_carry_kind_and_exit_code() {
+        let e = Error::NeedsConfirmation("ask first".into()).to_json();
+        assert_eq!(e, serde_json::json!({"error": "ask first", "kind": "needs_confirmation", "exit_code": 3}));
+        assert_eq!(Error::LoginRequired("x".into()).to_json()["exit_code"], 4);
+        assert_eq!(Error::Other("x".into()).to_json()["kind"], "error");
     }
 }

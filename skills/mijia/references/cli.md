@@ -62,6 +62,10 @@ for example when the device is busy, in a state that does not allow the change, 
 - `action`: `{"device", "action", "name", "args", "code", "result", "out": [{"id", "name", "value",
   "display"}]}`.
 
+When a command fails with `--json`, stdout gets `{"error", "kind", "exit_code"}` (`kind` is
+`login_required`, `needs_confirmation` or `error`) and stderr still gets the message as text.
+Command-line usage errors (exit code 2) are reported as text only.
+
 `risk` is `null` or one of `lock / access`, `gas / valve`, `heating`, `camera / privacy`,
 `network`. It is derived from the device's spec type, not its name.
 

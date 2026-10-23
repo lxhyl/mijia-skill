@@ -131,7 +131,9 @@ fn doctor(paths: &Paths, region_flag: Option<String>) -> Result<String> {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    let cli = Cli::parse();
+    let json = cli.json;
+    match run(cli) {
         Ok(text) => {
             if !text.is_empty() {
                 println!("{text}");
@@ -139,6 +141,9 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
+            if json {
+                println!("{}", e.to_json());
+            }
             eprintln!("mijia: {e}");
             ExitCode::from(e.exit_code() as u8)
         }
