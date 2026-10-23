@@ -136,7 +136,8 @@ fn spec_output(spec: &Spec, model: &str, device: Option<&Device>) -> Result<Outp
         Some(d) => format!("{} | {model} | {}", d.name, spec.description),
         None => format!("{model} | {}", spec.description),
     };
-    let mut text = format!("{header} | kind {}{}\nproperties (r = read, w = write):\n", spec.kind(), risk_note(spec));
+    let mut text =
+        format!("{header} | kind {}{}\nproperties (r = read, w = write, - = neither):\n", spec.kind(), risk_note(spec));
     let rows: Vec<Vec<String>> = spec
         .properties()
         .map(|(s, p)| vec![item_id(s, p), item_name(s, p), p.access_label().into(), item_label(p), p.value_hint()])
@@ -202,7 +203,9 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         for k in keys {
             let (s, p) = spec.find_property(k)?;
             if !p.readable() {
-                return fail(format!("{} {} is write-only and cannot be read", item_id(s, p), item_name(s, p)));
+                let why =
+                    if p.writable() { "is write-only" } else { "has no read access in its spec (access is empty)" };
+                return fail(format!("{} {} {why} and cannot be read", item_id(s, p), item_name(s, p)));
             }
             chosen.push((s, p));
         }
@@ -476,7 +479,10 @@ mod tests {
         assert!(out.text.contains("write-only:") && out.text.contains("actions:"));
         let one = status(&cloud, &FixtureSpecs, "Desk Plug", &["2-2".into()]).unwrap();
         assert_eq!(one.json["properties"].as_array().unwrap().len(), 1);
-        assert!(status(&cloud, &FixtureSpecs, "Desk Plug", &["heater.alarm".into()]).is_err());
+        let err = status(&cloud, &FixtureSpecs, "Desk Plug", &["heater.alarm".into()]).unwrap_err().to_string();
+        assert!(err.contains("write-only"), "{err}");
+        let err = status(&cloud, &FixtureSpecs, "Desk Plug", &["status-code".into()]).unwrap_err().to_string();
+        assert!(err.contains("no read access"), "{err}");
         assert!(cloud.writes().is_empty(), "status must never write");
     }
 

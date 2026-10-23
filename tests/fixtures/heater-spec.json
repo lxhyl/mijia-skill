@@ -22,7 +22,8 @@
         {"iid": 4, "type": "urn:miot-spec-v2:property:countdown-time:00000055:demo-heater1:1", "description": "Countdown Time", "format": "uint16", "access": ["read", "write", "notify"], "unit": "minutes", "value-range": [0, 480, 1]},
         {"iid": 5, "type": "urn:miot-spec-v2:property:temperature:00000020:demo-heater1:1", "description": "Temperature", "format": "float", "access": ["read", "notify"], "unit": "celsius", "value-range": [-30, 100, 0.1]},
         {"iid": 6, "type": "urn:miot-spec-v2:property:fault:00000009:demo-heater1:1", "description": "Device Fault", "format": "uint8", "access": ["read", "notify"], "value-list": [{"value": 0, "description": "No Faults"}, {"value": 1, "description": "Overheat"}]},
-        {"iid": 7, "type": "urn:miot-spec-v2:property:alarm:00000012:demo-heater1:1", "description": "Alarm", "format": "bool", "access": ["write"]}
+        {"iid": 7, "type": "urn:miot-spec-v2:property:alarm:00000012:demo-heater1:1", "description": "Alarm", "format": "bool", "access": ["write"]},
+        {"iid": 8, "type": "urn:miot-spec-v2:property:status-code:000000FE:demo-heater1:1", "description": "Status Code", "format": "uint8", "access": []}
       ],
       "actions": [
         {"iid": 1, "type": "urn:miot-spec-v2:action:set-timer:00002830:demo-heater1:1", "description": "Set Timer", "in": [4], "out": [4]},

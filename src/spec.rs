@@ -222,12 +222,13 @@ impl Property {
         self.access.iter().any(|a| a == "write")
     }
 
-    /// `r`, `w` or `rw`.
+    /// `r`, `w`, `rw`, or `-` when the spec grants neither (some properties only appear in events).
     pub fn access_label(&self) -> &'static str {
         match (self.readable(), self.writable()) {
             (true, true) => "rw",
+            (true, false) => "r",
             (false, true) => "w",
-            _ => "r",
+            (false, false) => "-",
         }
     }
 
@@ -566,6 +567,15 @@ pub mod tests {
         let minutes = spec.find_property("countdown-time").unwrap().1;
         assert_eq!(minutes.parse("90").unwrap(), json!(90));
         assert!(minutes.parse("1.5").is_err());
+    }
+
+    #[test]
+    fn access_labels() {
+        let spec = fixture();
+        assert_eq!(spec.find_property("heater.on").unwrap().1.access_label(), "rw");
+        assert_eq!(spec.find_property("heater.temperature").unwrap().1.access_label(), "r");
+        assert_eq!(spec.find_property("heater.alarm").unwrap().1.access_label(), "w");
+        assert_eq!(spec.find_property("heater.status-code").unwrap().1.access_label(), "-");
     }
 
     #[test]
