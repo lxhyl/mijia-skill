@@ -54,7 +54,9 @@ for example when the device is busy, in a state that does not allow the change, 
   "comment", "format", "access", "unit", "range", "values", "hint"}], "actions": [{"id", "name",
   "description", "comment", "in": [{"id", "name", "hint"}], "out": [...]}]}`.
 - `status`: `{"device", "kind", "risk", "properties": [{"id", "name", "description", "value",
-  "display", "writable", "hint"}]}`. `value` is `null` when the device did not return it.
+  "display", "writable", "hint"}], "write_only": [{"id", "name", "description", "hint"}],
+  "actions": [...]}` (`actions` as in `spec`). `value` is `null` when the device did not return it.
+  `write_only` and `actions` are only present when no properties are named.
 - `set`: `{"device", "property", "name", "value", "display", "code", "result", "read_back",
   "applied"}`. `applied` is `true`/`false` after the read-back, `null` for write-only properties.
 - `action`: `{"device", "action", "name", "args", "code", "result", "out": [{"id", "name", "value",

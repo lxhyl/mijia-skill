@@ -131,6 +131,14 @@ fn params_json(spec: &Spec, service: &Service, piids: &[u32]) -> Result<Vec<Valu
         .collect())
 }
 
+fn action_json(spec: &Spec, service: &Service, action: &Action) -> Result<Value> {
+    Ok(json!({
+        "id": item_id(service, action), "name": item_name(service, action),
+        "description": action.description, "comment": action.comment,
+        "in": params_json(spec, service, &action.inputs)?, "out": params_json(spec, service, &action.out)?,
+    }))
+}
+
 fn spec_output(spec: &Spec, model: &str, device: Option<&Device>) -> Result<Output> {
     let header = match device {
         Some(d) => format!("{} | {model} | {}", d.name, spec.description),
@@ -152,10 +160,7 @@ fn spec_output(spec: &Spec, model: &str, device: Option<&Device>) -> Result<Outp
             item_label(a),
             format!("({})", args_hint(spec, s, &a.inputs)?),
         ]);
-        actions.push(json!({
-            "id": item_id(s, a), "name": item_name(s, a), "description": a.description, "comment": a.comment,
-            "in": params_json(spec, s, &a.inputs)?, "out": params_json(spec, s, &a.out)?,
-        }));
+        actions.push(action_json(spec, s, a)?);
     }
     if !action_rows.is_empty() {
         text += "\nactions (run with: mijia action <device> <id> [args...]):\n";
@@ -227,26 +232,37 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         }));
     }
     text += &if rows.is_empty() { "  (no readable properties)".to_string() } else { table(&rows) };
+    let mut json = json!({"device": device, "kind": spec.kind(), "risk": spec::risk(&spec), "properties": properties});
+    // A full status (no properties named) also lists what can be written or run, in text and JSON alike.
     if keys.is_empty() {
-        let write_only: Vec<Vec<String>> = spec
-            .properties()
-            .filter(|(_, p)| p.writable() && !p.readable())
-            .map(|(s, p)| vec![item_id(s, p), item_name(s, p), item_label(p), format!("[w {}]", p.value_hint())])
-            .collect();
+        let write_only: Vec<(&Service, &Property)> =
+            spec.properties().filter(|(_, p)| p.writable() && !p.readable()).collect();
         if !write_only.is_empty() {
+            let rows: Vec<Vec<String>> = write_only
+                .iter()
+                .map(|&(s, p)| vec![item_id(s, p), item_name(s, p), item_label(p), format!("[w {}]", p.value_hint())])
+                .collect();
             text += "\nwrite-only:\n";
-            text += &table(&write_only);
+            text += &table(&rows);
         }
+        json["write_only"] = write_only
+            .iter()
+            .map(|&(s, p)| {
+                json!({"id": item_id(s, p), "name": item_name(s, p), "description": p.description, "hint": p.value_hint()})
+            })
+            .collect();
         let mut action_rows = Vec::new();
+        let mut actions = Vec::new();
         for (s, a) in spec.actions() {
             action_rows.push(vec![item_id(s, a), item_name(s, a), format!("({})", args_hint(&spec, s, &a.inputs)?)]);
+            actions.push(action_json(&spec, s, a)?);
         }
         if !action_rows.is_empty() {
             text += "\nactions:\n";
             text += &table(&action_rows);
         }
+        json["actions"] = Value::Array(actions);
     }
-    let json = json!({"device": device, "kind": spec.kind(), "risk": spec::risk(&spec), "properties": properties});
     Ok(Output { text, json })
 }
 
@@ -477,8 +493,12 @@ mod tests {
         assert!(out.text.contains("= 2 (Eco, 节能)"), "{}", out.text);
         assert!(!out.text.contains("serial-number"));
         assert!(out.text.contains("write-only:") && out.text.contains("actions:"));
+        assert_eq!(out.json["write_only"][0]["id"], "2-7");
+        assert_eq!(out.json["actions"][0]["name"], "heater.set-timer");
+        assert_eq!(out.json["actions"][0]["in"][0]["id"], "2-4");
         let one = status(&cloud, &FixtureSpecs, "Desk Plug", &["2-2".into()]).unwrap();
         assert_eq!(one.json["properties"].as_array().unwrap().len(), 1);
+        assert!(one.json.get("actions").is_none(), "named properties only");
         let err = status(&cloud, &FixtureSpecs, "Desk Plug", &["heater.alarm".into()]).unwrap_err().to_string();
         assert!(err.contains("write-only"), "{err}");
         let err = status(&cloud, &FixtureSpecs, "Desk Plug", &["status-code".into()]).unwrap_err().to_string();
