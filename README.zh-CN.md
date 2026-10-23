@@ -30,7 +30,7 @@
 ## 安装 CLI
 
 **预编译包**（macOS arm64/x86_64、Linux x86_64/arm64、Windows x86_64）：在
-[Releases](https://github.com/OWNER/mijia-skill/releases) 页面下载对应平台的压缩包，用旁边的 `.sha256`
+[Releases](https://github.com/lxhyl/mijia-skill/releases) 页面下载对应平台的压缩包，用旁边的 `.sha256`
 文件校验，然后把 `mijia` 放进 `PATH`：
 
 ```sh
@@ -45,7 +45,7 @@ macOS 上用浏览器下载的文件如果被 Gatekeeper 拦住，运行
 **用 Cargo 装**（Rust 1.85 及以上）：
 
 ```sh
-cargo install --locked --git https://github.com/OWNER/mijia-skill
+cargo install --locked --git https://github.com/lxhyl/mijia-skill
 # 或者在克隆下来的目录里：
 cargo install --locked --path .
 ```
@@ -72,7 +72,7 @@ mijia login --region de     # 其他地区：de、i2、ru、sg、us、tw、in
 
 ```sh
 # skills CLI 支持的任意 agent（https://github.com/vercel-labs/skills）
-npx skills add OWNER/mijia-skill
+npx skills add lxhyl/mijia-skill
 
 # Claude Code（当前用户）
 mkdir -p ~/.claude/skills && cp -R skills/mijia ~/.claude/skills/

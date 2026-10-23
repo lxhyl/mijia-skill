@@ -38,7 +38,7 @@ and checks every write against it. The agent looks up what a device supports bef
 ## Install the CLI
 
 **Prebuilt binary** (macOS arm64/x86_64, Linux x86_64/arm64, Windows x86_64): download the archive
-for your platform from the [Releases](https://github.com/OWNER/mijia-skill/releases) page, check it
+for your platform from the [Releases](https://github.com/lxhyl/mijia-skill/releases) page, check it
 against the `.sha256` file next to it, and put `mijia` on your `PATH`:
 
 ```sh
@@ -53,7 +53,7 @@ On macOS, if a browser download is blocked by Gatekeeper, run
 **With Cargo** (Rust 1.85 or newer):
 
 ```sh
-cargo install --locked --git https://github.com/OWNER/mijia-skill
+cargo install --locked --git https://github.com/lxhyl/mijia-skill
 # or from a clone:
 cargo install --locked --path .
 ```
@@ -83,7 +83,7 @@ Your region is shown in the Mi Home app under Profile → Settings → Region.
 
 ```sh
 # Any agent supported by the skills CLI (https://github.com/vercel-labs/skills)
-npx skills add OWNER/mijia-skill
+npx skills add lxhyl/mijia-skill
 
 # Claude Code (user-wide)
 mkdir -p ~/.claude/skills && cp -R skills/mijia ~/.claude/skills/
