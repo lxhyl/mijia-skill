@@ -2,6 +2,7 @@ mod cloud;
 mod commands;
 mod config;
 mod error;
+mod login;
 mod spec;
 
 use std::path::PathBuf;
@@ -72,6 +73,8 @@ enum Cmd {
         #[arg(long)]
         confirmed: bool,
     },
+    /// Log in by scanning a QR code with the Mi Home app. For the account owner only, in their own terminal
+    Login,
     /// Show where the login cache, config and spec cache are (never prints credentials)
     Doctor,
 }
@@ -84,6 +87,10 @@ fn run(cli: Cli) -> Result<String> {
         Cloud::new(config::load_token(&paths.token)?, &paths.token, &region)
     };
     let output = match cli.command {
+        Cmd::Login => {
+            login::run(&paths, cli.region)?;
+            return Ok(String::new());
+        }
         Cmd::Doctor => return doctor(&paths, cli.region),
         Cmd::List => commands::list(&cloud()?)?,
         Cmd::Spec { model: Some(model), .. } => commands::spec_of_model(&specs, &model)?,
