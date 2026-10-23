@@ -181,8 +181,11 @@ pub fn write_private(path: &Path, contents: &str) -> Result<()> {
         builder.create(dir)?;
     }
     let tmp = dir.join(format!(".{}.tmp", path.file_name().unwrap_or_default().to_string_lossy()));
+    // A leftover from an interrupted run could have looser permissions, and opening an existing
+    // file keeps them: always start from a new file so the mode below applies.
+    let _ = fs::remove_file(&tmp);
     let mut options = fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -218,6 +221,17 @@ mod tests {
             r#"{"deviceId": "ABCDEF", "userId": 12345, "passToken": "p", "xiaomiio": ["c2VjcmV0", "svc"]}"#,
         )
         .unwrap();
+        #[cfg(unix)]
+        {
+            // A stale, world-readable temp file must not leak its mode into the new token.
+            use std::os::unix::fs::PermissionsExt;
+            let stale = dir.join(".token.json.tmp");
+            fs::write(&stale, "old").unwrap();
+            fs::set_permissions(&stale, fs::Permissions::from_mode(0o644)).unwrap();
+            write_private(&path, r#"{"deviceId": "ABCDEF", "userId": 12345, "xiaomiio": ["c2VjcmV0", "svc"]}"#)
+                .unwrap();
+            assert!(!stale.exists());
+        }
         let token = load_token(&path).unwrap();
         assert_eq!(token.user_id, "12345");
         assert_eq!(token.device_id, "ABCDEF");
