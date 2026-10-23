@@ -51,10 +51,11 @@ for example when the device is busy, in a state that does not allow the change, 
 
 - `list`: `[{"name", "model", "did", "online"}]` (`online` may be `null` for Bluetooth devices).
 - `spec`: `{"device", "model", "type", "kind", "risk", "properties": [{"id", "name", "description",
-  "comment", "format", "access", "unit", "range", "values", "hint"}], "actions": [{"id", "name",
-  "description", "comment", "in": [{"id", "name", "hint"}], "out": [...]}]}`.
-- `status`: `{"device", "kind", "risk", "firmware", "properties": [{"id", "name", "description", "value",
-  "display", "writable", "hint"}], "write_only": [{"id", "name", "description", "hint"}],
+  "comment", "label", "format", "access", "unit", "range", "values", "hint"}], "actions": [{"id",
+  "name", "description", "comment", "label", "in": [{"id", "name", "hint"}], "out": [...]}]}`.
+- `status`: `{"device", "kind", "risk", "firmware", "properties": [{"id", "name", "description",
+  "comment", "label", "value", "display", "writable", "hint"}], "write_only": [{"id", "name",
+  "description", "comment", "label", "hint"}],
   "actions": [...]}` (`actions` as in `spec`). `value` is `null` when the device did not return it.
   `write_only` and `actions` are only present when no properties are named.
 - `set`: `{"device", "property", "name", "value", "display", "code", "result", "read_back",
@@ -65,6 +66,9 @@ for example when the device is busy, in a state that does not allow the change, 
 When a command fails with `--json`, stdout gets `{"error", "kind", "exit_code"}` (`kind` is
 `login_required`, `needs_confirmation` or `error`) and stderr still gets the message as text.
 Command-line usage errors (exit code 2) are reported as text only.
+
+`description` is the spec's English text and `comment` its Chinese note (either can be empty);
+`label` combines them exactly as the text output shows them.
 
 `risk` is `null` or one of `lock / access`, `gas / valve`, `heating`, `camera / privacy`,
 `network`. It is derived from the device's spec type, not its name.

@@ -134,7 +134,7 @@ fn params_json(spec: &Spec, service: &Service, piids: &[u32]) -> Result<Vec<Valu
 fn action_json(spec: &Spec, service: &Service, action: &Action) -> Result<Value> {
     Ok(json!({
         "id": item_id(service, action), "name": item_name(service, action),
-        "description": action.description, "comment": action.comment,
+        "description": action.description, "comment": action.comment, "label": item_label(action),
         "in": params_json(spec, service, &action.inputs)?, "out": params_json(spec, service, &action.out)?,
     }))
 }
@@ -174,6 +174,7 @@ fn spec_output(spec: &Spec, model: &str, device: Option<&Device>) -> Result<Outp
             v["name"] = json!(item_name(s, p));
             v["description"] = json!(p.description);
             v["comment"] = json!(p.comment);
+            v["label"] = json!(item_label(p));
             v
         })
         .collect();
@@ -241,6 +242,7 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         rows.push(vec![item_id(s, p), item_name(s, p), format!("= {}", clip(p.show(&value))), item_label(p), access]);
         properties.push(json!({
             "id": item_id(s, p), "name": item_name(s, p), "description": p.description,
+            "comment": p.comment, "label": item_label(p),
             "value": value, "display": p.show(&value), "writable": p.writable(), "hint": p.value_hint(),
         }));
     }
@@ -264,7 +266,10 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         json["write_only"] = write_only
             .iter()
             .map(|&(s, p)| {
-                json!({"id": item_id(s, p), "name": item_name(s, p), "description": p.description, "hint": p.value_hint()})
+                json!({
+                    "id": item_id(s, p), "name": item_name(s, p), "description": p.description,
+                    "comment": p.comment, "label": item_label(p), "hint": p.value_hint(),
+                })
             })
             .collect();
         let mut action_rows = Vec::new();
@@ -513,6 +518,11 @@ mod tests {
         assert_eq!(out.json["firmware"], "1.0.9");
         assert!(out.text.contains("write-only:") && out.text.contains("actions:"));
         assert_eq!(out.json["write_only"][0]["id"], "2-7");
+        // `label` is what the text output shows: description plus the Chinese comment, or either alone.
+        let on = &out.json["properties"][0];
+        assert_eq!((on["comment"].as_str(), on["label"].as_str()), (Some("开关"), Some("Switch Status (开关)")));
+        assert_eq!(out.json["write_only"][0]["label"], "Alarm");
+        assert_eq!(out.json["actions"][0]["label"], "Set Timer");
         assert_eq!(out.json["actions"][0]["name"], "heater.set-timer");
         assert_eq!(out.json["actions"][0]["in"][0]["id"], "2-4");
         let one = status(&cloud, &FixtureSpecs, "Desk Plug", &["2-2".into()]).unwrap();
