@@ -216,10 +216,23 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         }
         chosen
     };
-    let iids: Vec<(u32, u32)> = selected.iter().map(|(s, p)| (s.iid, p.iid)).collect();
-    let values = cloud::get_props(api, &device.did, &iids)?;
+    // The firmware version rides along in the same request: it is how firmware updates get noticed.
+    let firmware_prop = spec
+        .properties()
+        .find(|(s, p)| spec::is_info_service(s) && spec::urn_name(&p.urn) == "firmware-revision" && p.readable());
+    let mut iids: Vec<(u32, u32)> = selected.iter().map(|(s, p)| (s.iid, p.iid)).collect();
+    if let Some((s, p)) = firmware_prop {
+        iids.push((s.iid, p.iid));
+    }
+    let mut values = cloud::get_props(api, &device.did, &iids)?;
+    let firmware = if firmware_prop.is_some() { values.pop().flatten() } else { None };
+    let firmware_note = match &firmware {
+        Some(v) if !v.is_null() => format!(" | firmware {}", spec::value_text(v)),
+        _ => String::new(),
+    };
 
-    let mut text = format!("{} | {} | {}{}\n", device.name, device.model, device.online_label(), risk_note(&spec));
+    let mut text =
+        format!("{} | {} | {}{firmware_note}{}\n", device.name, device.model, device.online_label(), risk_note(&spec));
     let mut rows = Vec::new();
     let mut properties = Vec::new();
     for (&(s, p), value) in selected.iter().zip(&values) {
@@ -232,7 +245,10 @@ pub fn status(api: &dyn Api, specs: &dyn SpecSource, key: &str, keys: &[String])
         }));
     }
     text += &if rows.is_empty() { "  (no readable properties)".to_string() } else { table(&rows) };
-    let mut json = json!({"device": device, "kind": spec.kind(), "risk": spec::risk(&spec), "properties": properties});
+    let mut json = json!({
+        "device": device, "kind": spec.kind(), "risk": spec::risk(&spec), "firmware": firmware,
+        "properties": properties,
+    });
     // A full status (no properties named) also lists what can be written or run, in text and JSON alike.
     if keys.is_empty() {
         let write_only: Vec<(&Service, &Property)> =
@@ -440,6 +456,7 @@ mod tests {
                                     (Some(2), Some(1)) => json!(self.applies_writes),
                                     (Some(2), Some(2)) => json!(21.0),
                                     (Some(2), Some(3)) => json!(2),
+                                    (Some(1), Some(3)) => json!("1.0.9"),
                                     _ => json!(0),
                                 };
                                 json!({"did": p["did"], "siid": p["siid"], "piid": p["piid"], "code": 0, "value": value})
@@ -492,6 +509,8 @@ mod tests {
         assert!(out.text.contains("2-2  heater.target-temperature  = 21°C"), "{}", out.text);
         assert!(out.text.contains("= 2 (Eco, 节能)"), "{}", out.text);
         assert!(!out.text.contains("serial-number"));
+        assert!(out.text.starts_with("Desk Plug | demo.plug.p1 | online | firmware 1.0.9\n"), "{}", out.text);
+        assert_eq!(out.json["firmware"], "1.0.9");
         assert!(out.text.contains("write-only:") && out.text.contains("actions:"));
         assert_eq!(out.json["write_only"][0]["id"], "2-7");
         assert_eq!(out.json["actions"][0]["name"], "heater.set-timer");

@@ -8,7 +8,8 @@
       "description": "Device Information",
       "properties": [
         {"iid": 1, "type": "urn:miot-spec-v2:property:manufacturer:00000001:demo-heater1:1", "description": "Device Manufacturer", "format": "string", "access": ["read"]},
-        {"iid": 2, "type": "urn:miot-spec-v2:property:serial-number:00000003:demo-heater1:1", "description": "Serial Number", "format": "string", "access": ["read"]}
+        {"iid": 2, "type": "urn:miot-spec-v2:property:serial-number:00000003:demo-heater1:1", "description": "Serial Number", "format": "string", "access": ["read"]},
+        {"iid": 3, "type": "urn:miot-spec-v2:property:firmware-revision:00000005:demo-heater1:1", "description": "Current Firmware Version", "format": "string", "access": ["read"]}
       ]
     },
     {

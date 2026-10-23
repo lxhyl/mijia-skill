@@ -24,8 +24,8 @@ and checks every write against it. The agent looks up what a device supports bef
 - **The login cache stays put.** It is written with mode `600` to `~/.config/mijia/token.json`,
   read-only for every other command, and never printed.
 - **Minimal data.** `list` keeps only name, model, did and online state from the cloud's device list
-  (which also contains device keys and IPs). `status` skips serial numbers and firmware details
-  unless asked.
+  (which also contains device keys and IPs). `status` skips serial numbers unless asked and shows
+  only the firmware version from the device-information service.
 - **High-risk devices need explicit confirmation.** Writes to locks, doors and gates, gas and
   valves, anything that heats, cameras, and routers/gateways are refused unless the agent passes
   `--confirmed`, which the skill allows only after the user approved that exact operation. The

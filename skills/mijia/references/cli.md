@@ -15,8 +15,8 @@
 
 Global options (any position): `--json`, `--region <cn|de|i2|ru|sg|us|tw|in>`, `--token <path>`.
 
-`status` leaves out the `device-information` service (manufacturer, firmware, serial number)
-unless you name one of its properties.
+`status` leaves out the `device-information` service (manufacturer, serial number) unless you
+name one of its properties; the firmware version is shown in its header line instead.
 
 Text output truncates very long values (for example a router's client list); use `--json`
 for the full value.
@@ -53,7 +53,7 @@ for example when the device is busy, in a state that does not allow the change, 
 - `spec`: `{"device", "model", "type", "kind", "risk", "properties": [{"id", "name", "description",
   "comment", "format", "access", "unit", "range", "values", "hint"}], "actions": [{"id", "name",
   "description", "comment", "in": [{"id", "name", "hint"}], "out": [...]}]}`.
-- `status`: `{"device", "kind", "risk", "properties": [{"id", "name", "description", "value",
+- `status`: `{"device", "kind", "risk", "firmware", "properties": [{"id", "name", "description", "value",
   "display", "writable", "hint"}], "write_only": [{"id", "name", "description", "hint"}],
   "actions": [...]}` (`actions` as in `spec`). `value` is `null` when the device did not return it.
   `write_only` and `actions` are only present when no properties are named.
